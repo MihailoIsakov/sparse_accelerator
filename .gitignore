@@ -1,4 +1,5 @@
 *.swp
 *.coe
 *.pyc
+*.npz
 venv/
