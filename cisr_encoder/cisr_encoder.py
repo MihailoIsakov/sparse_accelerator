@@ -102,3 +102,63 @@ def encode_cisr(matrix, channel_num):
 
     return values, columns, lns
 
+
+def extract_model(path):
+    model = np.load(path)
+
+    W1 = model["arr_0"]
+    W2 = model["arr_2"]
+    W3 = model["arr_4"]
+
+    b1 = model["arr_1"]
+    b2 = model["arr_3"]
+    b3 = model["arr_5"]
+
+    return W1, b1, W2, b2, W3, b3
+
+
+def _quantize(values, mult=256):
+    """
+    Convert the float values into signed 8bit integers.
+    The floats are multiplied by mult, and then rounded.
+    The mult should be choosen so that the lowest and highest 
+    values do not clip - avoid values outside [-128, 127]
+    In case this is not followed, the values will overflow!
+
+    NOTE: 256 choosen as it works for the current network.
+    """
+    rounded = np.round(values * mult)
+
+    assert np.all(rounded <  127)
+    assert np.all(rounded > -128)
+
+    return rounded.astype(np.int8)
+
+
+def quantize_model(path):
+    params = extract_model(path)
+    quantized = []
+
+    for param in params:
+        quantized.append(_quantize(param))
+
+    return quantized
+
+
+def model_to_cisr(path, channel_num):
+    W1, b1, W2, b2, W3, b3 = quantize_model(path)
+
+    W1_cisr = encode_cisr(W1, channel_num)
+    W2_cisr = encode_cisr(W2, channel_num)
+    W3_cisr = encode_cisr(W3, channel_num)
+
+    return W1_cisr, b1, W2_cisr, b2, W3_cisr, b3
+     
+
+# def model_to_coe(path, channel_num):
+    # W1_cisr, b1, W2_cisr, b2, W3_cisr, b3 = model_to_cisr(path, channel_num)
+
+    
+
+    
+
