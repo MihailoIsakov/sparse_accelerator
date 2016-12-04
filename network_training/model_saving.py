@@ -172,7 +172,7 @@ def build_net(input_var, neurons1, neurons2):
     l_hid2_drop = lasagne.layers.DropoutLayer(l_hid2, p=0.2)
     network = lasagne.layers.DenseLayer(
             l_hid2_drop, num_units=10,
-            nonlinearity=lasagne.nonlinearities.rectify)
+            nonlinearity=lasagne.nonlinearities.softmax)
 
     return network, l_hid1, l_hid2
 
@@ -230,7 +230,7 @@ def main(num_epochs=500, decay=0.0001, percentage=0.95, prune_every=20, learning
     val_fn = theano.function([input_var, target_var], [test_loss, test_acc])
 
     # make masks for weigths
-    mask_1 = None; mask_2 = None
+    mask_1 = None; mask_2 = None; mask_3 = None;
 
     # meta 
     min_error = 85 
@@ -253,9 +253,10 @@ def main(num_epochs=500, decay=0.0001, percentage=0.95, prune_every=20, learning
                 train_err += train_fn(inputs, targets)
                 train_batches += 1
 
-                if mask_1 is not None and mask_2 is not None:
+                if mask_1 is not None and mask_2 is not None and mask_3 is not None:
                     mask_layer(l_hid1, mask_1)
                     mask_layer(l_hid2, mask_2)
+                    mask_layer(network, mask_3)
 
             # And a full pass over the validation data:
             val_err = 0
@@ -293,6 +294,7 @@ def main(num_epochs=500, decay=0.0001, percentage=0.95, prune_every=20, learning
             if epoch % prune_every == prune_every - 1:
                 mask_1 = prune_by_value(l_hid1, 1 - percentage**(epoch / prune_every + 1), prnt=True)
                 mask_2 = prune_by_value(l_hid2, 1 - percentage**(epoch / prune_every + 1), prnt=True)
+                mask_3 = prune_by_value(network, 1 - percentage**(epoch / prune_every + 1), prnt=True)
                 #mask_1 = prune_by_hessian(l_hid1, loss, 1 - percentage**(epoch / prune_every + 1))
                 #mask_2 = prune_by_hessian(l_hid2, loss, 1 - percentage**(epoch / prune_every + 1))
 
