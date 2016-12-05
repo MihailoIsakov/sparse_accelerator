@@ -1,5 +1,7 @@
 import numpy as np
 
+import coe_gen
+
 
 def generate_random_sparse(m, n, sparsity):
     values = np.random.rand(m, n)
@@ -10,7 +12,11 @@ def generate_random_sparse(m, n, sparsity):
 
 def row_nnz(matrix, row_index):
     # gets the number of nonzero elements in the row
-    return len(matrix[row_index].nonzero()[0])
+    try:
+        return len(matrix[row_index].nonzero()[0])
+    except:
+        # in case it is empty
+        return 0
 
 
 def encode_cisr(matrix, channel_num):
@@ -55,7 +61,8 @@ def encode_cisr(matrix, channel_num):
             if to_process <= 0:
                 # if the next free row is empty, skip it
                 if next_free_row < matrix.shape[0]:
-                    while (row_nnz(matrix, next_free_row) == 0):
+
+                    while row_nnz(matrix, next_free_row) == 0 and next_free_row < matrix.shape[0]:
                         next_free_row += 1
 
                     lengths[channel].append(row_nnz(matrix, next_free_row))
@@ -117,7 +124,7 @@ def extract_model(path):
     return W1, b1, W2, b2, W3, b3
 
 
-def _quantize(values, mult=256):
+def _quantize(W, b):
     """
     Convert the float values into signed 8bit integers.
     The floats are multiplied by mult, and then rounded.
@@ -127,20 +134,31 @@ def _quantize(values, mult=256):
 
     NOTE: 256 choosen as it works for the current network.
     """
-    rounded = np.round(values * mult)
+    mx = np.max([np.max(np.abs(W)), np.max(np.abs(b))])
+    mult = np.floor(127 / mx) - 1
 
-    assert np.all(rounded <  127)
-    assert np.all(rounded > -128)
+    W = np.round(W * mult)
+    b = np.round(b * mult)
 
-    return rounded.astype(np.int8)
+    assert np.all(W <  127)
+    assert np.all(W > -128)
+    assert np.all(b <  127)
+    assert np.all(b > -128)
+
+    return W.astype(np.int8), b.astype(np.int8)
 
 
 def quantize_model(path):
     params = extract_model(path)
+
     quantized = []
 
-    for param in params:
-        quantized.append(_quantize(param))
+    # TODO remove hardcoding
+    for i in range(0, 6, 2):
+        W, b = _quantize(params[i], params[i + 1])
+
+        quantized.append(W)
+        quantized.append(b)
 
     return quantized
 
@@ -153,12 +171,68 @@ def model_to_cisr(path, channel_num):
     W3_cisr = encode_cisr(W3, channel_num)
 
     return W1_cisr, b1, W2_cisr, b2, W3_cisr, b3
+
+
+def twos_complement(values):
+    assert np.all(np.array(values) >= -128)
+    assert np.all(np.array(values) <= 127)
+
+    return np.array(values) & 0xff
+    #TODO this is hacky, hardcoding 8 bits
+    # return np.binary_repr(values, width=8)
      
 
-# def model_to_coe(path, channel_num):
-    # W1_cisr, b1, W2_cisr, b2, W3_cisr, b3 = model_to_cisr(path, channel_num)
+def model_to_coe(path, channel_num):
+    W1_cisr, b1, W2_cisr, b2, W3_cisr, b3 = model_to_cisr(path, channel_num)
 
-    
+    b1 = list(twos_complement(b1))
+    b2 = list(twos_complement(b2))
+    b3 = list(twos_complement(b3))
 
-    
+    w1_val = list(twos_complement(W1_cisr[0]))
+    w2_val = list(twos_complement(W2_cisr[0]))
+    w3_val = list(twos_complement(W3_cisr[0]))
+
+    assert np.all(np.array(w1_val) <= 255)
+    assert np.all(np.array(w2_val) <= 255)
+    assert np.all(np.array(w3_val) <= 255)
+    assert np.all(np.array(w1_val) >= 0)
+    assert np.all(np.array(w2_val) >= 0)
+    assert np.all(np.array(w3_val) >= 0)
+
+    w1_col = W1_cisr[1] 
+    w2_col = W2_cisr[1] 
+    w3_col = W3_cisr[1] 
+
+    w1_len = W1_cisr[2] 
+    w2_len = W2_cisr[2] 
+    w3_len = W3_cisr[2] 
+
+    data = \
+        w1_val + w1_col + w1_len + b1 + \
+        w2_val + w2_col + w2_len + b2 + \
+        w3_val + w3_col + w3_len + b3
+
+    addresses = [
+        len(w1_val),
+        len(w1_val) + len(w1_col),
+        len(w1_val) + len(w1_col) + len(w1_len),
+        len(w1_val) + len(w1_col) + len(w1_len) + len(b1),
+        len(w1_val) + len(w1_col) + len(w1_len) + len(b1) + len(w2_val),
+        len(w1_val) + len(w1_col) + len(w1_len) + len(b1) + len(w2_val) + len(w2_col),
+        len(w1_val) + len(w1_col) + len(w1_len) + len(b1) + len(w2_val) + len(w2_col) + len(w2_len),
+        len(w1_val) + len(w1_col) + len(w1_len) + len(b1) + len(w2_val) + len(w2_col) + len(w2_len) + len(b2),
+        len(w1_val) + len(w1_col) + len(w1_len) + len(b1) + len(w2_val) + len(w2_col) + len(w2_len) + len(b2) + len(w3_val),
+        len(w1_val) + len(w1_col) + len(w1_len) + len(b1) + len(w2_val) + len(w2_col) + len(w2_len) + len(b2) + len(w3_val) + len(w3_col),
+        len(w1_val) + len(w1_col) + len(w1_len) + len(b1) + len(w2_val) + len(w2_col) + len(w2_len) + len(b2) + len(w3_val) + len(w3_col) + len(w3_len),
+        len(w1_val) + len(w1_col) + len(w1_len) + len(b1) + len(w2_val) + len(w2_col) + len(w2_len) + len(b2) + len(w3_val) + len(w3_col) + len(w3_len) + len(b3)
+    ]
+
+    # return data, addresses
+    assert np.all(np.array(data) <= 255)
+    assert np.all(np.array(data) >= 0)
+
+    coe_gen.generate_coe("rom.coe", data)
+
+    return addresses, data
 
