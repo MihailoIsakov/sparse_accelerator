@@ -214,6 +214,7 @@ def model_to_coe(path, channel_num):
         w3_val + w3_col + w3_len + b3
 
     addresses = [
+        0,
         len(w1_val),
         len(w1_val) + len(w1_col),
         len(w1_val) + len(w1_col) + len(w1_len),
@@ -224,15 +225,14 @@ def model_to_coe(path, channel_num):
         len(w1_val) + len(w1_col) + len(w1_len) + len(b1) + len(w2_val) + len(w2_col) + len(w2_len) + len(b2),
         len(w1_val) + len(w1_col) + len(w1_len) + len(b1) + len(w2_val) + len(w2_col) + len(w2_len) + len(b2) + len(w3_val),
         len(w1_val) + len(w1_col) + len(w1_len) + len(b1) + len(w2_val) + len(w2_col) + len(w2_len) + len(b2) + len(w3_val) + len(w3_col),
-        len(w1_val) + len(w1_col) + len(w1_len) + len(b1) + len(w2_val) + len(w2_col) + len(w2_len) + len(b2) + len(w3_val) + len(w3_col) + len(w3_len),
-        len(w1_val) + len(w1_col) + len(w1_len) + len(b1) + len(w2_val) + len(w2_col) + len(w2_len) + len(b2) + len(w3_val) + len(w3_col) + len(w3_len) + len(b3)
+        len(w1_val) + len(w1_col) + len(w1_len) + len(b1) + len(w2_val) + len(w2_col) + len(w2_len) + len(b2) + len(w3_val) + len(w3_col) + len(w3_len)
     ]
 
     # return data, addresses
     assert np.all(np.array(data) <= 255)
     assert np.all(np.array(data) >= 0)
 
-    coe_gen.generate_coe("rom.coe", data)
+    coe_gen.generate_coe("rom.coe", data, addresses)
 
-    return addresses, data
+    return addresses
 
