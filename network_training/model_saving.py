@@ -186,7 +186,7 @@ def main(num_epochs=500, decay=0.0001, percentage=0.95, prune_every=20, learning
     input_var = T.tensor4('inputs')
     target_var = T.ivector('targets')
 
-    network, l_hid1, l_hid2 = build_net(input_var, 300, 100)
+    network, l_hid1, l_hid2 = build_net(input_var, 250, 150)
 
     prediction = lasagne.layers.get_output(network)
     loss = lasagne.objectives.categorical_crossentropy(prediction, target_var)
