@@ -234,5 +234,14 @@ def model_to_coe(path, channel_num):
 
     coe_gen.generate_coe("rom.coe", data, addresses)
 
+    print "addresses: "
+    print addresses
+        
     return addresses
+
+
+if __name__ == "__main__":
+    import sys
+
+    model_to_coe(sys.argv[1], sys.argv[2])
 
