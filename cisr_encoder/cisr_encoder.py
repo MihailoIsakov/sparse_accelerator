@@ -163,6 +163,19 @@ def quantize_model(path):
     return quantized
 
 
+def pad_bias(matrix, bias):
+    """ Pads the matrix with the bias, zeros, and one in the corner, to avoid having to compute the bias separately """
+    bias = bias.reshape((1, len(bias)))
+
+    side = np.zeros((matrix.shape[0] + 1, 1))
+    side[-1] = 1
+
+    matrix = np.concatenate((matrix, bias), axis=0)
+    matrix = np.concatenate((matrix, side), axis=1)
+
+    return matrix
+
+
 def model_to_cisr(path, channel_num):
     W1, b1, W2, b2, W3, b3 = quantize_model(path)
 
