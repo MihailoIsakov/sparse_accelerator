@@ -110,6 +110,92 @@ def encode_cisr(matrix, channel_num):
     return values, columns, lns
 
 
+def pad_with_zeros(lst, length):
+    ln = length - len(lst)
+    pad = [0 for x in range(ln)]
+    return lst + pad
+
+
+def encode_cisr_separate(matrix, channel_num):
+    """
+    I was drunk when I wrote this. It works, but do not try to understand the logic.
+    Wipe it and start over if it start acting up.
+    CISR format can be a lot cleaner, they messed up with the length encoding.
+    -- Mihailo
+    """
+    lengths = [[] for x in range(channel_num)]
+    values  = [[] for x in range(channel_num)]
+    columns = [[] for x in range(channel_num)]
+
+    # counts how many values each channel has left
+    counters = np.zeros(channel_num)
+    # keeps track which channel is processing which row
+    channel_rows = np.zeros(channel_num) 
+    # next free row index
+    next_free_row = 0
+
+    def initialize(channel_num, channel_rows, counters, next_free_row):
+        index = 0
+        while index != channel_num:
+            if row_nnz(matrix, next_free_row) > 0:
+                channel_rows[index] = next_free_row    
+                counters[index] = row_nnz(matrix, next_free_row)
+                lengths[index].append(row_nnz(matrix, next_free_row))
+                # switch to the next row
+                index += 1
+
+            next_free_row += 1
+
+        return channel_num, channel_rows, counters, next_free_row
+
+    channel_num, channel_rows, counters, next_free_row = initialize(channel_num, channel_rows, counters, next_free_row)
+
+    # until we process all the rows and all counters are empty
+    while next_free_row < matrix.shape[0] or np.any(counters > 0):
+        # go thourgh each channel
+        for channel, to_process in enumerate(counters):
+            # if the channel is empty, give it a new row
+            if to_process <= 0:
+                # if the next free row is empty, skip it
+                if next_free_row < matrix.shape[0]:
+
+                    while row_nnz(matrix, next_free_row) == 0 and next_free_row < matrix.shape[0]:
+                        next_free_row += 1
+
+                    lengths[channel].append(row_nnz(matrix, next_free_row))
+
+                    channel_rows[channel] = next_free_row
+                    # count the number of elements
+                    counters[channel] = row_nnz(matrix, next_free_row)
+                    next_free_row += 1
+
+            # if the counter is empty even after giving it a new row, we must have ran out of rows
+            if counters[channel] > 0:
+                # figure out the value
+                channel_vals = matrix[channel_rows[channel]]
+                nnz_indices = channel_vals.nonzero()[0]
+                val = matrix[channel_rows[channel], nnz_indices[-counters[channel]]]
+                values[channel].append(val)
+                # and the column
+                col = nnz_indices[-counters[channel]]
+                columns[channel].append(col)
+
+            # whether the channel is assigned a new row or not, process the next element
+            counters[channel] -= 1
+
+    padded_values = []
+    padded_columns = []
+
+    max_len = len(max(values + columns, key=len))
+
+    for v in values:
+        padded_values.append(pad_with_zeros(v, max_len))
+    for c in columns:
+        padded_columns.append(pad_with_zeros(c, max_len))
+
+    return padded_values, padded_columns, lengths
+
+
 def extract_model(path):
     model = np.load(path)
 
@@ -148,6 +234,15 @@ def _quantize(W, b):
     return W.astype(np.int8), b.astype(np.int8)
 
 
+def twos_complement(values):
+    assert np.all(np.array(values) >= -128)
+    assert np.all(np.array(values) <= 127)
+
+    return np.array(values) & 0xff
+    #TODO this is hacky, hardcoding 8 bits
+    # return np.binary_repr(values, width=8)
+
+
 def quantize_model(path):
     params = extract_model(path)
 
@@ -157,8 +252,9 @@ def quantize_model(path):
     for i in range(0, 6, 2):
         W, b = _quantize(params[i], params[i + 1])
 
+        W = pad_bias(W, b).astype(np.int8)
+        W = twos_complement(W)
         quantized.append(W)
-        quantized.append(b)
 
     return quantized
 
@@ -186,15 +282,16 @@ def model_to_cisr(path, channel_num):
     return W1_cisr, b1, W2_cisr, b2, W3_cisr, b3
 
 
-def twos_complement(values):
-    assert np.all(np.array(values) >= -128)
-    assert np.all(np.array(values) <= 127)
+def model_to_cisr_separate(path, channel_num):
+    W1, W2, W3 = quantize_model(path)
 
-    return np.array(values) & 0xff
-    #TODO this is hacky, hardcoding 8 bits
-    # return np.binary_repr(values, width=8)
+    W1_cisr = encode_cisr_separate(W1, channel_num)
+    W2_cisr = encode_cisr_separate(W2, channel_num)
+    W3_cisr = encode_cisr_separate(W3, channel_num)
+
+    return W1_cisr, W2_cisr, W3_cisr
+
      
-
 def model_to_coe(path, channel_num):
     W1_cisr, b1, W2_cisr, b2, W3_cisr, b3 = model_to_cisr(path, channel_num)
 
@@ -205,6 +302,62 @@ def model_to_coe(path, channel_num):
     w1_val = list(twos_complement(W1_cisr[0]))
     w2_val = list(twos_complement(W2_cisr[0]))
     w3_val = list(twos_complement(W3_cisr[0]))
+
+    assert np.all(np.array(w1_val) <= 255)
+    assert np.all(np.array(w2_val) <= 255)
+    assert np.all(np.array(w3_val) <= 255)
+    assert np.all(np.array(w1_val) >= 0)
+    assert np.all(np.array(w2_val) >= 0)
+    assert np.all(np.array(w3_val) >= 0)
+
+    w1_col = W1_cisr[1] 
+    w2_col = W2_cisr[1] 
+    w3_col = W3_cisr[1] 
+
+    w1_len = W1_cisr[2] 
+    w2_len = W2_cisr[2] 
+    w3_len = W3_cisr[2] 
+
+    data = \
+        w1_val + w1_col + w1_len + b1 + \
+        w2_val + w2_col + w2_len + b2 + \
+        w3_val + w3_col + w3_len + b3
+
+    addresses = [
+        0,
+        len(w1_val),
+        len(w1_val) + len(w1_col),
+        len(w1_val) + len(w1_col) + len(w1_len),
+        len(w1_val) + len(w1_col) + len(w1_len) + len(b1),
+        len(w1_val) + len(w1_col) + len(w1_len) + len(b1) + len(w2_val),
+        len(w1_val) + len(w1_col) + len(w1_len) + len(b1) + len(w2_val) + len(w2_col),
+        len(w1_val) + len(w1_col) + len(w1_len) + len(b1) + len(w2_val) + len(w2_col) + len(w2_len),
+        len(w1_val) + len(w1_col) + len(w1_len) + len(b1) + len(w2_val) + len(w2_col) + len(w2_len) + len(b2),
+        len(w1_val) + len(w1_col) + len(w1_len) + len(b1) + len(w2_val) + len(w2_col) + len(w2_len) + len(b2) + len(w3_val),
+        len(w1_val) + len(w1_col) + len(w1_len) + len(b1) + len(w2_val) + len(w2_col) + len(w2_len) + len(b2) + len(w3_val) + len(w3_col),
+        len(w1_val) + len(w1_col) + len(w1_len) + len(b1) + len(w2_val) + len(w2_col) + len(w2_len) + len(b2) + len(w3_val) + len(w3_col) + len(w3_len)
+    ]
+
+    # return data, addresses
+    assert np.all(np.array(data) <= 255)
+    assert np.all(np.array(data) >= 0)
+
+    coe_gen.generate_coe("rom.coe", data, addresses)
+
+    print "addresses: "
+    print addresses
+        
+    return addresses
+
+
+def model_to_coe_separate(path, channel_num):
+    W1_cisr, W2_cisr, W3_cisr = model_to_cisr_separate(path, channel_num)
+
+    w1_val = list(W1_cisr[0])
+    w2_val = list(W2_cisr[0])
+    w3_val = list(W3_cisr[0])
+
+    channel_lenghts = []
 
     assert np.all(np.array(w1_val) <= 255)
     assert np.all(np.array(w2_val) <= 255)
