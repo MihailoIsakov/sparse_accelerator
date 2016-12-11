@@ -351,49 +351,21 @@ def model_to_coe(path, channel_num):
 
 
 def model_to_coe_separate(path, channel_num):
+    # each one of the values is a tuple (values, columns, lenghts), each of those values is a list of channels
     W1_cisr, W2_cisr, W3_cisr = model_to_cisr_separate(path, channel_num)
+    
+    data = []
+    addresses = [0]
 
-    w1_val = list(W1_cisr[0])
-    w2_val = list(W2_cisr[0])
-    w3_val = list(W3_cisr[0])
+    for w in [W1_cisr, W2_cisr, W3_cisr]:
+        for tp in range(3):  # val, col, len
+            for channel in range(len(w[tp])):
+                addresses.append(addresses[-1] + len(w[tp][channel]))
+                data += w[tp][channel]
 
-    channel_lenghts = []
-
-    assert np.all(np.array(w1_val) <= 255)
-    assert np.all(np.array(w2_val) <= 255)
-    assert np.all(np.array(w3_val) <= 255)
-    assert np.all(np.array(w1_val) >= 0)
-    assert np.all(np.array(w2_val) >= 0)
-    assert np.all(np.array(w3_val) >= 0)
-
-    w1_col = W1_cisr[1] 
-    w2_col = W2_cisr[1] 
-    w3_col = W3_cisr[1] 
-
-    w1_len = W1_cisr[2] 
-    w2_len = W2_cisr[2] 
-    w3_len = W3_cisr[2] 
-
-    data = \
-        w1_val + w1_col + w1_len + b1 + \
-        w2_val + w2_col + w2_len + b2 + \
-        w3_val + w3_col + w3_len + b3
-
-    addresses = [
-        0,
-        len(w1_val),
-        len(w1_val) + len(w1_col),
-        len(w1_val) + len(w1_col) + len(w1_len),
-        len(w1_val) + len(w1_col) + len(w1_len) + len(b1),
-        len(w1_val) + len(w1_col) + len(w1_len) + len(b1) + len(w2_val),
-        len(w1_val) + len(w1_col) + len(w1_len) + len(b1) + len(w2_val) + len(w2_col),
-        len(w1_val) + len(w1_col) + len(w1_len) + len(b1) + len(w2_val) + len(w2_col) + len(w2_len),
-        len(w1_val) + len(w1_col) + len(w1_len) + len(b1) + len(w2_val) + len(w2_col) + len(w2_len) + len(b2),
-        len(w1_val) + len(w1_col) + len(w1_len) + len(b1) + len(w2_val) + len(w2_col) + len(w2_len) + len(b2) + len(w3_val),
-        len(w1_val) + len(w1_col) + len(w1_len) + len(b1) + len(w2_val) + len(w2_col) + len(w2_len) + len(b2) + len(w3_val) + len(w3_col),
-        len(w1_val) + len(w1_col) + len(w1_len) + len(b1) + len(w2_val) + len(w2_col) + len(w2_len) + len(b2) + len(w3_val) + len(w3_col) + len(w3_len)
-    ]
-
+    # the last one is the address of the byte after the end - we dont need it
+    addresses = addresses[:-1]
+                
     # return data, addresses
     assert np.all(np.array(data) <= 255)
     assert np.all(np.array(data) >= 0)
@@ -409,5 +381,5 @@ def model_to_coe_separate(path, channel_num):
 if __name__ == "__main__":
     import sys
 
-    model_to_coe(sys.argv[1], sys.argv[2])
+    model_to_coe_separate(sys.argv[1], int(sys.argv[2]))
 
