@@ -3,7 +3,12 @@ from keras.datasets import mnist
 import coe_gen
 
 
-def get_mnist():
+def pad_to_length(data, length):
+    pad_len = length - len(data)
+    return np.pad(data, (0, pad_len), 'constant')
+
+
+def get_mnist(pad=True, pad_length=1024):
     (X_train, y_train), _ = mnist.load_data()
 
     img_num = 10
@@ -12,6 +17,12 @@ def get_mnist():
 
     images = [img.flatten() for img in images]
     images = [np.append(img, [1]) for img in images]
+
+    if pad:
+        images = [pad_to_length(img, pad_length) for img in images]
+
+    for img in images:
+        assert len(img) == 1024
 
     return list(np.array(images).flatten()), labels
 
