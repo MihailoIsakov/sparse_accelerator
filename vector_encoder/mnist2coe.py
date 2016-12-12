@@ -8,12 +8,21 @@ def pad_to_length(data, length):
     return np.pad(data, (0, pad_len), 'constant')
 
 
-def get_mnist(pad=True, pad_length=1024):
+def load_different_images():
     (X_train, y_train), _ = mnist.load_data()
 
-    img_num = 10
-    images = X_train[:img_num]
-    labels = y_train[:img_num]
+    images = []
+    labels = range(10)
+
+    for i in labels:
+        index = np.argwhere(y_train == i)[0]
+        images.append(X_train[index])
+
+    return images, labels
+
+
+def get_mnist(pad=True, pad_length=1024):
+    images, labels = load_different_images()
 
     images = [img.flatten() for img in images]
     images = [np.append(img, [1]) for img in images]
