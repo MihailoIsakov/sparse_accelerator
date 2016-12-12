@@ -1,5 +1,5 @@
 
-def generate_coe(path, memory, radix=16, bytes_per_row=8, ):
+def generate_coe(path, memory, labels, radix=16, bytes_per_row=8, ):
     """
     Creates a COE file
     """
@@ -7,6 +7,8 @@ def generate_coe(path, memory, radix=16, bytes_per_row=8, ):
 
     f.write("; Storing images with 1 appended to the end\n")
     f.write("; Each image is 28*28+1=785 bytes long\n")
+    f.write(";\n")
+    f.write("; Labels: " + str(labels) + "\n")
     f.write(";\n")
     f.write("memory_initialization_radix = " + str(radix) + ";\n")
     f.write("memory_initialization_vector = \n")
