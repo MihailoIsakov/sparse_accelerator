@@ -252,7 +252,7 @@ def quantize_model(path):
     for i in range(0, 6, 2):
         W, b = _quantize(params[i], params[i + 1])
 
-        W = pad_bias(W, b).astype(np.int8)
+        W = pad_bias(W, b).astype(np.int8).T
         W = twos_complement(W)
         quantized.append(W)
 
@@ -367,7 +367,39 @@ def model_to_coe_separate(path, channel_num):
     addresses = addresses[:-1]
                 
     # return data, addresses
-    assert np.all(np.array(data) <= 255)
+    # assert np.all(np.array(data) <= 255)
+    assert np.all(np.array(data) >= 0)
+
+    coe_gen.generate_coe("rom.coe", data, addresses)
+
+    print "addresses: "
+    print addresses
+        
+    return addresses
+
+
+
+def model_to_coe_separate_coe(paths, channel_num):
+    # each one of the values is a tuple (values, columns, lenghts), each of those values is a list of channels
+    W1_cisr, W2_cisr, W3_cisr = model_to_cisr_separate(path, channel_num)
+    
+    data = []
+    addresses = [0]
+
+    values  = [W1_cisr[0], W2_cisr[0], W3_cisr[0]]
+    columns = [W1_cisr[1], W2_cisr[1], W3_cisr[1]]
+    lengths = [W1_cisr[2], W2_cisr[2], W3_cisr[2]]
+
+    for w in [W1_cisr, W2_cisr, W3_cisr]:
+        for channel in range(len(w[tp])):
+            addresses.append(addresses[-1] + len(w[tp][channel]))
+            data += w[tp][channel]
+
+    # the last one is the address of the byte after the end - we dont need it
+    addresses = addresses[:-1]
+                
+    # return data, addresses
+    # assert np.all(np.array(data) <= 255)
     assert np.all(np.array(data) >= 0)
 
     coe_gen.generate_coe("rom.coe", data, addresses)
