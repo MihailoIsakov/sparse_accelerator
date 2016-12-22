@@ -1,0 +1,63 @@
+; Storing NN weights and biases, along with images
+; Stored sequentially as W1, b1, W2, b2, W3, b3, img1, img2, img3...
+; Positions of matrices and vectors are determined during synthesys,
+; and should be parametrized in the design
+;
+; Addresses of values, columns, lengths, biases, for the 3 layers: 
+; [0, 65, 93, 96, 158, 199, 201, 260, 300, 303, 367, 406, 409]
+;
+; Memory stored as one byte values, written in hex format (radix = 16)
+memory_initialization_radix = 16;
+memory_initialization_vector = 
+0d 11 06 15 0b 15 19 16 
+14 0a 14 0e 1c 16 04 19 
+16 0d 1b 06 18 06 0c 13 
+05 11 12 0b 18 02 13 10 
+13 0f 0b 11 17 04 10 08 
+1f 07 1f 0b 1f 0b 18 1a 
+17 12 02 17 09 0e 03 15 
+0f 10 07 10 12 02 10 24 
+07 05 0e 11 01 01 03 07 
+12 01 08 01 12 12 13 0a 
+01 01 01 06 0a 01 01 11 
+0e 13 01 0a 01 04 04 03 
+06 10 06 06 19 0d 0d 1f 
+01 22 03 0d 1a 14 0a 1c 
+08 0a 23 18 13 1e 05 11 
+02 1a 11 1b 07 1b 17 0c 
+12 05 10 01 16 21 02 16 
+05 0a 0f 1e 17 0c 1c 1f 
+1d 0c 0e 18 1d 13 12 01 
+15 0e 09 16 16 01 0c 08 
+01 01 01 06 15 01 0b 01 
+02 01 02 07 01 01 0b 01 
+01 10 01 02 01 07 0a 01 
+01 01 01 0c 01 01 01 04 
+01 11 1c 01 01 11 11 04 
+05 1c 0c 13 16 1c 02 13 
+19 0a 10 14 1e 0b 0d 0d 
+19 14 0b 19 0c 1c 10 10 
+0d 12 0e 13 0a 16 0c 11 
+10 0e 07 03 18 16 19 17 
+1a 12 13 11 12 14 0d 1f 
+15 1c 1d 0f 09 02 1c 0f 
+02 12 1b 15 03 02 01 01 
+0d 01 01 0b 01 01 0e 0b 
+09 01 08 18 01 02 01 14 
+01 04 09 04 04 10 02 01 
+01 08 05 05 01 0b 06 02 
+01 07 01 0a 04 04 01 10 
+1b 0e 0d 10 11 14 16 1e 
+0b 11 13 22 10 0d 10 05 
+17 0e 01 0c 16 09 11 1a 
+09 0a 1f 0d 1f 19 06 13 
+0f 0d 06 0a 1d 0a 08 04 
+1e 1a 1b 03 14 06 10 16 
+0c 0e 1a 1b 0b 17 0e 04 
+0f 0c 18 13 11 07 11 0f 
+01 02 0e 02 05 0d 0e 01 
+01 02 15 01 01 02 01 01 
+17 10 03 01 04 01 10 01 
+03 04 01 0a 01 0d 04 01 
+01 0f 02 01 04 03 03 04 
+04 
