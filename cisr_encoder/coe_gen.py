@@ -1,5 +1,5 @@
 
-def generate_coe(path, memory, addr, radix=16, bytes_per_row=8):
+def generate_coe(path, memory, addr, radix=16, bytes_per_row=8, bits_per_value=8):
     """
     Creates a COE file
     """
@@ -17,12 +17,15 @@ def generate_coe(path, memory, addr, radix=16, bytes_per_row=8):
     f.write("memory_initialization_radix = " + str(radix) + ";\n")
     f.write("memory_initialization_vector = \n")
 
+    hex_format = "0" + str(bits_per_value / 4) + "x"
+
     row_counter = 0
     for cell in memory:
-        assert 0 <= cell <= 255
+        assert 0 <= cell 
+        # assert cell <= 255
 
         # hex format
-        f.write(format(cell, '02x') + " ")
+        f.write(format(cell, hex_format) + " ")
         # dec format
         # f.write(str(twos_complement(cell)) + " ")
 
