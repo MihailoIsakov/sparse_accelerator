@@ -157,24 +157,29 @@ def weird(x):
     return T.sum(T.sqrt(T.maximum(T.sum(abs(x), axis=0), 0.001))) + T.sum(T.sqrt(T.maximum(T.sum(abs(x), axis=1), 0.001)))
 
 
-def build_net(input_var, neurons1, neurons2):
+# def build_net(input_var, neurons1, neurons2):
+def build_net(input_var):
     l_in = lasagne.layers.InputLayer(shape=(None, 1, 28, 28),
                                      input_var=input_var)
     l_in_drop = lasagne.layers.DropoutLayer(l_in, p=0.2)
-    l_hid1 = lasagne.layers.DenseLayer(
-            l_in_drop, num_units=neurons1,
-            nonlinearity=lasagne.nonlinearities.rectify,
-            W=lasagne.init.GlorotUniform())
-    l_hid1_drop = lasagne.layers.DropoutLayer(l_hid1, p=0.2)
-    l_hid2 = lasagne.layers.DenseLayer(
-            l_hid1_drop, num_units=neurons2,
-            nonlinearity=lasagne.nonlinearities.rectify)
-    l_hid2_drop = lasagne.layers.DropoutLayer(l_hid2, p=0.2)
+    # l_hid1 = lasagne.layers.DenseLayer(
+            # l_in_drop, num_units=neurons1,
+            # # nonlinearity=lasagne.nonlinearities.rectify,
+            # W=lasagne.init.GlorotUniform())
+    # l_hid1_drop = lasagne.layers.DropoutLayer(l_hid1, p=0.2)
+    # l_hid2 = lasagne.layers.DenseLayer(
+    # l_hid1_drop, num_units=neurons2,
+    # nonlinearity=lasagne.nonlinearities.rectify)
+    # l_hid2_drop = lasagne.layers.DropoutLayer(l_hid2, p=0.2)
+    # network = lasagne.layers.DenseLayer(
+    # l_hid2_drop, num_units=10,
+    # nonlinearity=lasagne.nonlinearities.softmax)
     network = lasagne.layers.DenseLayer(
-            l_hid2_drop, num_units=10,
+            l_in_drop, num_units=10,
             nonlinearity=lasagne.nonlinearities.softmax)
 
-    return network, l_hid1, l_hid2
+    # return network, l_hid1, l_hid2
+    return network
 
 
 def main(num_epochs=500, decay=0.0001, percentage=0.95, prune_every=20, learning_rate=0.01, lr_decay=0.99, neighborhood=31):
@@ -186,17 +191,17 @@ def main(num_epochs=500, decay=0.0001, percentage=0.95, prune_every=20, learning
     input_var = T.tensor4('inputs')
     target_var = T.ivector('targets')
 
-    network, l_hid1, l_hid2 = build_net(input_var, 250, 150)
+    network = build_net(input_var)
 
     prediction = lasagne.layers.get_output(network)
     loss = lasagne.objectives.categorical_crossentropy(prediction, target_var)
     loss = loss.mean()
 
     penalty_func = l2
-    penalty_1 = regularize_layer_params(l_hid1, penalty_func) * decay 
-    penalty_2 = regularize_layer_params(l_hid2, penalty_func) * decay 
+    penalty_1 = regularize_layer_params(network, penalty_func) * decay 
+    # penalty_2 = regularize_layer_params(l_hid2, penalty_func) * decay 
 
-    loss = loss + penalty_1 + penalty_2
+    loss = loss + penalty_1
 
     # Create update expressions for training, i.e., how to modify the
     # parameters at each training step. Here, we'll use Stochastic Gradient
@@ -230,7 +235,7 @@ def main(num_epochs=500, decay=0.0001, percentage=0.95, prune_every=20, learning
     val_fn = theano.function([input_var, target_var], [test_loss, test_acc])
 
     # make masks for weigths
-    mask_1 = None; mask_2 = None; mask_3 = None;
+    mask_1 = None
 
     # meta 
     min_error = 85 
@@ -253,10 +258,10 @@ def main(num_epochs=500, decay=0.0001, percentage=0.95, prune_every=20, learning
                 train_err += train_fn(inputs, targets)
                 train_batches += 1
 
-                if mask_1 is not None and mask_2 is not None and mask_3 is not None:
-                    mask_layer(l_hid1, mask_1)
-                    mask_layer(l_hid2, mask_2)
-                    mask_layer(network, mask_3)
+                if mask_1 is not None:
+                    mask_layer(network, mask_1)
+                    # mask_layer(l_hid2, mask_2)
+                    # mask_layer(network, mask_3)
 
             # And a full pass over the validation data:
             val_err = 0
@@ -292,14 +297,14 @@ def main(num_epochs=500, decay=0.0001, percentage=0.95, prune_every=20, learning
 
             # every n epochs, update the mask
             if epoch % prune_every == prune_every - 1:
-                mask_1 = prune_by_value(l_hid1, 1 - percentage**(epoch / prune_every + 1), prnt=True)
-                mask_2 = prune_by_value(l_hid2, 1 - percentage**(epoch / prune_every + 1), prnt=True)
-                mask_3 = prune_by_value(network, 1 - percentage**(epoch / prune_every + 1), prnt=True)
+                mask_1 = prune_by_value(network, 1 - percentage**(epoch / prune_every + 1), prnt=True)
+                # mask_2 = prune_by_value(l_hid2, 1 - percentage**(epoch / prune_every + 1), prnt=True)
+                # mask_3 = prune_by_value(network, 1 - percentage**(epoch / prune_every + 1), prnt=True)
                 #mask_1 = prune_by_hessian(l_hid1, loss, 1 - percentage**(epoch / prune_every + 1))
                 #mask_2 = prune_by_hessian(l_hid2, loss, 1 - percentage**(epoch / prune_every + 1))
 
-            z1 = print_zero_num(l_hid1, '1')
-            z2 = print_zero_num(l_hid2, '2')
+            z1 = print_zero_num(network, '1')
+            # z2 = print_zero_num(l_hid2, '2')
 
     except KeyboardInterrupt:
         pass
