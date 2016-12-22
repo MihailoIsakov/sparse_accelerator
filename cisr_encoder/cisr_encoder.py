@@ -272,16 +272,6 @@ def pad_bias(matrix, bias):
     return matrix
 
 
-def model_to_cisr(path, channel_num):
-    W1, b1, W2, b2, W3, b3 = quantize_model(path)
-
-    W1_cisr = encode_cisr(W1, channel_num)
-    W2_cisr = encode_cisr(W2, channel_num)
-    W3_cisr = encode_cisr(W3, channel_num)
-
-    return W1_cisr, b1, W2_cisr, b2, W3_cisr, b3
-
-
 def model_to_cisr_separate(path, channel_num):
     W1, W2, W3 = quantize_model(path)
 
@@ -291,127 +281,58 @@ def model_to_cisr_separate(path, channel_num):
 
     return W1_cisr, W2_cisr, W3_cisr
 
-     
-def model_to_coe(path, channel_num):
-    W1_cisr, b1, W2_cisr, b2, W3_cisr, b3 = model_to_cisr(path, channel_num)
 
-    b1 = list(twos_complement(b1))
-    b2 = list(twos_complement(b2))
-    b3 = list(twos_complement(b3))
-
-    w1_val = list(twos_complement(W1_cisr[0]))
-    w2_val = list(twos_complement(W2_cisr[0]))
-    w3_val = list(twos_complement(W3_cisr[0]))
-
-    assert np.all(np.array(w1_val) <= 255)
-    assert np.all(np.array(w2_val) <= 255)
-    assert np.all(np.array(w3_val) <= 255)
-    assert np.all(np.array(w1_val) >= 0)
-    assert np.all(np.array(w2_val) >= 0)
-    assert np.all(np.array(w3_val) >= 0)
-
-    w1_col = W1_cisr[1] 
-    w2_col = W2_cisr[1] 
-    w3_col = W3_cisr[1] 
-
-    w1_len = W1_cisr[2] 
-    w2_len = W2_cisr[2] 
-    w3_len = W3_cisr[2] 
-
-    data = \
-        w1_val + w1_col + w1_len + b1 + \
-        w2_val + w2_col + w2_len + b2 + \
-        w3_val + w3_col + w3_len + b3
-
-    addresses = [
-        0,
-        len(w1_val),
-        len(w1_val) + len(w1_col),
-        len(w1_val) + len(w1_col) + len(w1_len),
-        len(w1_val) + len(w1_col) + len(w1_len) + len(b1),
-        len(w1_val) + len(w1_col) + len(w1_len) + len(b1) + len(w2_val),
-        len(w1_val) + len(w1_col) + len(w1_len) + len(b1) + len(w2_val) + len(w2_col),
-        len(w1_val) + len(w1_col) + len(w1_len) + len(b1) + len(w2_val) + len(w2_col) + len(w2_len),
-        len(w1_val) + len(w1_col) + len(w1_len) + len(b1) + len(w2_val) + len(w2_col) + len(w2_len) + len(b2),
-        len(w1_val) + len(w1_col) + len(w1_len) + len(b1) + len(w2_val) + len(w2_col) + len(w2_len) + len(b2) + len(w3_val),
-        len(w1_val) + len(w1_col) + len(w1_len) + len(b1) + len(w2_val) + len(w2_col) + len(w2_len) + len(b2) + len(w3_val) + len(w3_col),
-        len(w1_val) + len(w1_col) + len(w1_len) + len(b1) + len(w2_val) + len(w2_col) + len(w2_len) + len(b2) + len(w3_val) + len(w3_col) + len(w3_len)
-    ]
-
-    # return data, addresses
-    assert np.all(np.array(data) <= 255)
-    assert np.all(np.array(data) >= 0)
-
-    coe_gen.generate_coe("rom.coe", data, addresses)
-
-    print "addresses: "
-    print addresses
-        
-    return addresses
-
-
-def model_to_coe_separate(path, channel_num):
-    # each one of the values is a tuple (values, columns, lenghts), each of those values is a list of channels
-    W1_cisr, W2_cisr, W3_cisr = model_to_cisr_separate(path, channel_num)
-    
-    data = []
+def data2coe(path, data, bits_per_value=8):
     addresses = [0]
+    output = []
 
-    for w in [W1_cisr, W2_cisr, W3_cisr]:
-        for tp in range(3):  # val, col, len
-            for channel in range(len(w[tp])):
-                addresses.append(addresses[-1] + len(w[tp][channel]))
-                data += w[tp][channel]
+    for d in data:
+        addresses.append(addresses[-1] + len(d))
+        output += d
 
-    # the last one is the address of the byte after the end - we dont need it
-    addresses = addresses[:-1]
-                
-    # return data, addresses
-    # assert np.all(np.array(data) <= 255)
-    assert np.all(np.array(data) >= 0)
+    coe_gen.generate_coe(path, output, addresses, bits_per_value=bits_per_value)
 
-    coe_gen.generate_coe("rom.coe", data, addresses)
-
-    print "addresses: "
-    print addresses
-        
-    return addresses
+    return output, addresses
 
 
+def flip_around(W1_cisr, W2_cisr, W3_cisr, ch):
+    """
+    Takes matrices of 3 elements (val, col, len), of which each element is a list of length channel_num,
+    and converts it to 3 elements (val, col, len), where the same channels are grouped together, not matrices
+    """
+    values  = W1_cisr[0] + W2_cisr[0] + W3_cisr[0]
+    columns = W1_cisr[1] + W2_cisr[1] + W3_cisr[1]
+    lengths = W1_cisr[2] + W2_cisr[2] + W3_cisr[2]
 
-def model_to_coe_separate_coe(paths, channel_num):
-    # each one of the values is a tuple (values, columns, lenghts), each of those values is a list of channels
-    W1_cisr, W2_cisr, W3_cisr = model_to_cisr_separate(path, channel_num)
+    indexing = [range(s, ch * 3, ch) for s in range(ch)]
+    indexing = [item for sublist in indexing for item in sublist]  # flatten list - SO dark magic
+
+    flipped_values  = [values[x]  for x in indexing]
+    flipped_columns = [columns[x] for x in indexing]
+    flipped_lengths = [lengths[x] for x in indexing]
+
+    return flipped_values, flipped_columns, flipped_lengths
     
-    data = []
-    addresses = [0]
 
-    values  = [W1_cisr[0], W2_cisr[0], W3_cisr[0]]
-    columns = [W1_cisr[1], W2_cisr[1], W3_cisr[1]]
-    lengths = [W1_cisr[2], W2_cisr[2], W3_cisr[2]]
+def model_to_coe(paths, channel_num):
+    # each one of the values is a tuple (values, columns, lenghts), each of those values is a list of channels
+    W1_cisr, W2_cisr, W3_cisr = model_to_cisr_separate(paths, channel_num)
+    
+    # values  = W1_cisr[0] + W2_cisr[0] + W3_cisr[0]
+    # columns = W1_cisr[1] + W2_cisr[1] + W3_cisr[1]
+    # lengths = W1_cisr[2] + W2_cisr[2] + W3_cisr[2]
 
-    for w in [W1_cisr, W2_cisr, W3_cisr]:
-        for channel in range(len(w[tp])):
-            addresses.append(addresses[-1] + len(w[tp][channel]))
-            data += w[tp][channel]
+    values, columns, lengths = flip_around(W1_cisr, W2_cisr, W3_cisr, channel_num)
 
-    # the last one is the address of the byte after the end - we dont need it
-    addresses = addresses[:-1]
-                
-    # return data, addresses
-    # assert np.all(np.array(data) <= 255)
-    assert np.all(np.array(data) >= 0)
+    data2coe("values.coe",  values, bits_per_value=8)
+    data2coe("columns.coe", columns, bits_per_value=16)
+    data2coe("lengths.coe", lengths, bits_per_value=8)
 
-    coe_gen.generate_coe("rom.coe", data, addresses)
-
-    print "addresses: "
-    print addresses
-        
-    return addresses
+    return values, lengths, columns
 
 
 if __name__ == "__main__":
     import sys
 
-    model_to_coe_separate(sys.argv[1], int(sys.argv[2]))
+    model_to_coe(sys.argv[1], int(sys.argv[2]))
 
